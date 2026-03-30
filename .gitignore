@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+E-PerciptionMockup/node_modules/
+
+# Environment variables — НИКОГДА не пушить!
+.env
+backend/.env
+E-PerciptionMockup/.env
+
+# Build
+dist/
+build/
+
+# Prisma generated
+backend/node_modules/.prisma/
