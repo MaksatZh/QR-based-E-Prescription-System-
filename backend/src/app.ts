@@ -33,7 +33,7 @@ app.use(errorHandler)
 
 cron.schedule('0 */6 * * *', async () => {
     const count = await expirePrescriptions()
-    if (count > 0) console.log(`⏰ Expired ${count} prescription(s)`)
+    if (count > 0) console.log(`Expired ${count} prescription(s)`)
 })
 
 async function bootstrap() {
