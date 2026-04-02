@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
-const FROM = 'E-Prescription System <onboarding@resend.dev>'
+const FROM = 'E-Prescription System <noreply@e-prescriprion.top>'
 
 async function send(to: string, subject: string, html: string) {
   const { error } = await resend.emails.send({ from: FROM, to, subject, html })
@@ -78,15 +78,15 @@ export async function sendOtpEmail(to: string, fullName: string, otp: string, fi
 }
 
 export async function sendPrescriptionEmail(
-  to: string,
-  patientName: string,
-  doctorName: string,
-  prescriptionId: string,
-  medications: { name: string; dosage: string; qtyPrescribed: number }[]
+    to: string,
+    patientName: string,
+    doctorName: string,
+    prescriptionId: string,
+    medications: { name: string; dosage: string; qtyPrescribed: number }[]
 ) {
   const link = `${process.env.FRONTEND_URL}/patient/${prescriptionId}`
   const medsHtml = medications.map(m =>
-    `<tr>
+      `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;color:#111">${m.name}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;text-align:center">${m.dosage}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;text-align:center">${m.qtyPrescribed} шт.</td>
