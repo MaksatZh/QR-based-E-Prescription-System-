@@ -50,6 +50,18 @@ export const authApi = {
       method: 'PATCH',
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
+
+  requestChange: (field: 'email' | 'phone', newValue: string) =>
+    request<{ message: string }>('/auth/request-change', {
+      method: 'POST',
+      body: JSON.stringify({ field, newValue }),
+    }),
+
+  confirmChange: (code: string) =>
+    request<{ message: string; user: any }>('/auth/confirm-change', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
 }
 
 // ─── Prescriptions ────────────────────────────────────────────────────────────

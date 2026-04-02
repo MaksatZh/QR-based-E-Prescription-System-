@@ -4,6 +4,7 @@ import { prisma } from '../prisma/client'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { logAction } from '../services/audit.service'
+import { sendPrescriptionEmail } from '../services/email.service'
 import { recalcPrescriptionStatus } from '../services/prescription.service'
 
 const router = Router()
@@ -132,6 +133,29 @@ router.post('/', authenticate, authorize('doctor'), async (req: AuthRequest, res
       `Created prescription for patient ${patient.fullName} (IIN: ${patient.iin})`,
       prescription.id,
     )
+
+    // Send prescription link to patient email
+    try {
+      const doctor = await prisma.user.findUnique({
+        where: { id: req.user!.userId },
+        select: { fullName: true },
+      })
+      await sendPrescriptionEmail(
+        patientRecord.email,
+        patientRecord.fullName,
+        doctor?.fullName || 'Врач',
+        prescription.id,
+        prescription.medications.map(m => ({
+          name: m.name,
+          dosage: m.dosage,
+          qtyPrescribed: m.qtyPrescribed,
+        }))
+      )
+      console.log('Prescription email sent to:', patientRecord.email)
+    } catch (emailErr) {
+      console.error('Failed to send prescription email:', emailErr)
+      // Don't fail the request if email fails
+    }
 
     res.status(201).json({ prescription })
   } catch (err) {

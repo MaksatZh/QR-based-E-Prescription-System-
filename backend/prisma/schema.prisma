@@ -27,7 +27,11 @@ model User {
   prescriptions    Prescription[]  @relation("DoctorPrescriptions")
   createdBy        User?           @relation("AdminCreatedUsers", fields: [createdById], references: [id])
   createdUsers     User[]          @relation("AdminCreatedUsers")
-
+  pendingEmail     String?
+  pendingPhone     String?
+  otpCode          String?
+  otpExpiry        DateTime?
+  otpField         String?   // 'email' или 'phone'
   @@map("users")
 }
 

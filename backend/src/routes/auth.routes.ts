@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import { prisma } from '../prisma/client'
 import { AppError } from '../middleware/errorHandler'
+import { sendActivationEmail, sendPasswordResetEmail, sendOtpEmail } from '../services/email.service'
 
 const router = Router()
 
@@ -244,6 +245,120 @@ router.patch('/change-password', async (req: Request, res: Response, next: NextF
     await prisma.user.update({ where: { id: user.id }, data: { passwordHash: newHash } })
 
     res.json({ message: 'Password changed successfully' })
+  } catch (err) {
+    next(err)
+  }
+})
+
+
+// POST /api/auth/request-change — request email or phone change via OTP
+router.post('/request-change', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization
+    if (!authHeader?.startsWith('Bearer ')) throw new AppError(401, 'No token provided')
+    const token = authHeader.split(' ')[1]
+    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string }
+
+    const { field, newValue } = req.body
+
+    if (!field || !['email', 'phone'].includes(field)) {
+      throw new AppError(400, 'Field must be email or phone')
+    }
+    if (!newValue || !newValue.trim()) {
+      throw new AppError(400, 'New value is required')
+    }
+
+    // Check email uniqueness
+    if (field === 'email') {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newValue)) {
+        throw new AppError(400, 'Invalid email format')
+      }
+      const existing = await prisma.user.findUnique({ where: { email: newValue } })
+      if (existing) throw new AppError(400, 'This email is already in use')
+    }
+
+    // Generate 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString()
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+
+    await prisma.user.update({
+      where: { id: payload.userId },
+      data: {
+        otpCode,
+        otpExpiry,
+        otpField: field,
+        ...(field === 'email' ? { pendingEmail: newValue } : { pendingPhone: newValue }),
+      },
+    })
+
+    console.log('\n========================================')
+    console.log(`OTP CODE for ${field} change (demo):`)
+    console.log(`New ${field}: ${newValue}`)
+    console.log(`OTP: ${otpCode}`)
+    console.log('(expires in 10 minutes)')
+    console.log('========================================\n')
+
+    res.json({ message: `Verification code sent to ${newValue}` })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// POST /api/auth/confirm-change — verify OTP and apply change
+router.post('/confirm-change', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization
+    if (!authHeader?.startsWith('Bearer ')) throw new AppError(401, 'No token provided')
+    const token = authHeader.split(' ')[1]
+    const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string }
+
+    const { code } = req.body
+    if (!code) throw new AppError(400, 'Verification code is required')
+
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } })
+    if (!user) throw new AppError(404, 'User not found')
+
+    if (!user.otpCode || !user.otpExpiry || !user.otpField) {
+      throw new AppError(400, 'No pending change request. Please request a new code.')
+    }
+
+    if (new Date() > user.otpExpiry) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { otpCode: null, otpExpiry: null, otpField: null, pendingEmail: null, pendingPhone: null },
+      })
+      throw new AppError(400, 'Verification code has expired. Please request a new one.')
+    }
+
+    if (user.otpCode !== code.toString()) {
+      throw new AppError(400, 'Invalid verification code')
+    }
+
+    // Apply the change
+    const updateData: any = {
+      otpCode: null,
+      otpExpiry: null,
+      otpField: null,
+      pendingEmail: null,
+      pendingPhone: null,
+    }
+
+    if (user.otpField === 'email' && user.pendingEmail) {
+      updateData.email = user.pendingEmail
+    } else if (user.otpField === 'phone' && user.pendingPhone) {
+      updateData.phone = user.pendingPhone
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: updateData,
+      select: { id: true, fullName: true, email: true, phone: true, role: true, accountStatus: true },
+    })
+
+    res.json({
+      message: `${user.otpField === 'email' ? 'Email' : 'Phone'} updated successfully`,
+      user: updated,
+    })
   } catch (err) {
     next(err)
   }

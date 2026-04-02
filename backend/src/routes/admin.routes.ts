@@ -6,6 +6,7 @@ import { prisma } from '../prisma/client'
 import { authenticate, authorize, AuthRequest } from '../middleware/auth'
 import { AppError } from '../middleware/errorHandler'
 import { logAction } from '../services/audit.service'
+import { sendActivationEmail } from '../services/email.service'
 
 const router = Router()
 
@@ -85,10 +86,10 @@ router.post('/users', authenticate, authorize('admin', 'super_admin'), async (re
     await logAction(req.user!.userId, 'CREATE_USER', 'User', user.id,
       `Created user ${data.email} with role ${data.role}`)
 
-    const activationLink = `${process.env.FRONTEND_URL}/activate/${activationToken}`
-    console.log(`📧 Activation link for ${data.email}: ${activationLink}`)
+    await sendActivationEmail(data.email, data.fullName, activationToken)
+    console.log('Activation email sent to:', data.email)
 
-    res.status(201).json({ user, activationLink })
+    res.status(201).json({ user })
   } catch (err) {
     next(err)
   }

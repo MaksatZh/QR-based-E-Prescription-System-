@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { toast } from 'sonner@2.0.3';
 import { getCurrentUser, setCurrentUser, logout } from '../lib/auth';
 import { authApi } from '../lib/api';
@@ -7,7 +7,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import {
-  Save, Upload, Lock, Mail, Phone, ShieldCheck, ArrowLeft, CheckCircle2, Info,
+  Save, Lock, Mail, Phone, ShieldCheck, ArrowLeft, CheckCircle2, Info,
   Clock, Smartphone, QrCode, Copy, Shield, AlertTriangle, History, KeyRound,
   Eye, EyeOff, Fingerprint, Download, RefreshCw, LogOut,
 } from 'lucide-react';
@@ -48,6 +48,77 @@ const INITIAL_AUDIT: ProfileAuditEntry[] = [
 const MOCK_TOTP_SECRET = 'JBSWY3DPEHPK3PXP';
 const MOCK_BACKUP_CODES = ['8a4f-2c91', '3b7e-d105', '9c2a-f438', '1d6b-e752', '5e8c-a069', '7f3d-b184', '2a9e-c497', '4b1f-d630'];
 
+// ── OTP Input — must be outside Profile to prevent focus loss on re-render ──
+function OTPInputRow({ value, onChange, autoFocus }: {
+  value: string[]; onChange: (val: string[]) => void; autoFocus?: boolean;
+}) {
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  return (
+    <div className="flex justify-center gap-2">
+      {value.map((digit, i) => (
+        <input
+          key={i}
+          ref={(el) => { inputRefs.current[i] = el; }}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={digit}
+          autoFocus={autoFocus && i === 0}
+          className="w-11 h-12 text-center text-[18px] border rounded-lg bg-gray-50 focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
+          onChange={(e) => {
+            const v = e.target.value.replace(/[^0-9]/g, '').slice(-1);
+            const next = [...value];
+            next[i] = v;
+            onChange(next);
+            if (v && i < 5) setTimeout(() => inputRefs.current[i + 1]?.focus(), 0);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Backspace') {
+              if (!value[i] && i > 0) {
+                const next = [...value];
+                next[i - 1] = '';
+                onChange(next);
+                setTimeout(() => inputRefs.current[i - 1]?.focus(), 0);
+              } else {
+                const next = [...value];
+                next[i] = '';
+                onChange(next);
+              }
+            }
+          }}
+          onPaste={(e) => {
+            const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6);
+            if (pasted) {
+              e.preventDefault();
+              const next = ['', '', '', '', '', ''];
+              pasted.split('').forEach((ch, idx) => { next[idx] = ch; });
+              onChange(next);
+              setTimeout(() => inputRefs.current[Math.min(pasted.length, 5)]?.focus(), 0);
+            }
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Отдельный компонент для countdown — не перерисовывает родителя
+const CountdownTimer = memo(({ initialSeconds, onResend }: { initialSeconds: number; onResend: () => void }) => {
+  const [seconds, setSeconds] = useState(initialSeconds);
+  useEffect(() => {
+    setSeconds(initialSeconds);
+  }, [initialSeconds]);
+  useEffect(() => {
+    if (seconds <= 0) return;
+    const t = setTimeout(() => setSeconds(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [seconds]);
+  if (seconds > 0) {
+    return <p className="text-[12px] text-muted-foreground">Resend code in <span className="text-foreground">{seconds}s</span></p>;
+  }
+  return <button type="button" className="text-[12px] text-emerald-600 hover:text-emerald-700 transition-colors" onClick={onResend}>Resend code</button>;
+});
+
 export default function Profile() {
   const user = getCurrentUser();
   const navigate = useNavigate();
@@ -64,7 +135,7 @@ export default function Profile() {
   const [newValue, setNewValue] = useState('');
   const [verifyCode, setVerifyCode] = useState(['', '', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [countdown, setCountdown] = useState(0);
+  const [countdownKey, setCountdownKey] = useState(0); // key to reset timer
   const codeRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const [auditLog, setAuditLog] = useState<ProfileAuditEntry[]>(
@@ -81,12 +152,7 @@ export default function Profile() {
   const [disablePassword, setDisablePassword] = useState('');
   const twoFARefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  useEffect(() => {
-    if (countdown > 0) {
-      const t = setTimeout(() => setCountdown(c => c - 1), 1000);
-      return () => clearTimeout(t);
-    }
-  }, [countdown]);
+
 
   const addAuditEntry = (action: string, field: string, oldVal?: string, newVal?: string) => {
     setAuditLog(prev => [{
@@ -105,12 +171,17 @@ export default function Profile() {
   };
   const closeVerify = () => { setVerifyTarget(null); setVerifyStep('input'); setNewValue(''); setVerifyCode(['', '', '', '', '', '']); };
 
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     if (!newValue.trim()) { toast.error(`Please enter a valid ${verifyTarget}`); return; }
     if (verifyTarget === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newValue)) { toast.error('Please enter a valid email'); return; }
-    setVerifyStep('code'); setCountdown(60);
-    toast.success(verifyTarget === 'email' ? `Code sent to ${newValue}` : `SMS sent to ${newValue}`);
-    setTimeout(() => codeRefs.current[0]?.focus(), 100);
+    try {
+      await authApi.requestChange(verifyTarget!, newValue);
+      setVerifyStep('code'); setCountdownKey(k => k + 1);
+      toast.success(`Verification code sent (check backend console)`);
+      setTimeout(() => codeRefs.current[0]?.focus(), 100);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send code');
+    }
   };
 
   const handleCodeInput = (index: number, value: string, refs: React.MutableRefObject<(HTMLInputElement | null)[]>, setState: React.Dispatch<React.SetStateAction<string[]>>, state: string[]) => {
@@ -133,17 +204,28 @@ export default function Profile() {
     }
   };
 
-  const handleVerifyCode = () => {
+  const handleVerifyCode = async () => {
     const code = verifyCode.join('');
     if (code.length < 6) { toast.error('Enter the full 6-digit code'); return; }
     setIsVerifying(true);
-    setTimeout(() => {
-      setIsVerifying(false);
+    try {
+      const res = await authApi.confirmChange(code);
+      // Update stored user data
+      const currentUser = getCurrentUser();
+      if (currentUser && res.user) {
+        setCurrentUser({ ...currentUser, ...res.user }, localStorage.getItem('token') || '');
+      }
       const oldVal = verifyTarget === 'email' ? profileData.email : profileData.phone;
       addAuditEntry(verifyTarget === 'email' ? 'EMAIL_CHANGED' : 'PHONE_CHANGED', verifyTarget!, oldVal, newValue);
       setVerifyStep('success');
       toast.success(`${verifyTarget === 'email' ? 'Email' : 'Phone'} updated successfully`);
-    }, 1500);
+    } catch (err: any) {
+      toast.error(err.message || 'Invalid code');
+      setVerifyCode(['', '', '', '', '', '']);
+      setTimeout(() => codeRefs.current[0]?.focus(), 100);
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   // ── Password — РЕАЛЬНЫЙ API ──
@@ -201,22 +283,7 @@ export default function Profile() {
   const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const formatTime = (d: Date) => d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-  const OTPInputRow = ({ code, setCode, refs, onPaste, autoFocus }: {
-    code: string[]; setCode: React.Dispatch<React.SetStateAction<string[]>>;
-    refs: React.MutableRefObject<(HTMLInputElement | null)[]>;
-    onPaste: (e: React.ClipboardEvent) => void; autoFocus?: boolean;
-  }) => (
-    <div className="flex justify-center gap-2" onPaste={onPaste}>
-      {code.map((digit, i) => (
-        <input key={i} ref={(el) => { refs.current[i] = el; }} type="text" inputMode="numeric" maxLength={1} value={digit}
-          onChange={(e) => handleCodeInput(i, e.target.value, refs, setCode, code)}
-          onKeyDown={(e) => handleCodeKeyDown(i, e, refs, code)}
-          autoFocus={autoFocus && i === 0}
-          className="w-11 h-12 text-center text-[18px] border rounded-lg bg-gray-50 focus:bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-        />
-      ))}
-    </div>
-  );
+
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[700px] mx-auto">
@@ -236,7 +303,7 @@ export default function Profile() {
           <p className="text-[13px] text-muted-foreground">{roleLabel}</p>
           <p className="text-[12px] text-muted-foreground">{profileData.email}</p>
         </div>
-        <Button variant="outline" size="sm" className="h-9" onClick={() => toast.info('Photo upload — not available in demo')}><Upload className="size-4 mr-1.5" /> Photo</Button>
+
       </div>
 
       <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
@@ -458,11 +525,15 @@ export default function Profile() {
               <DialogDescription className="text-[13px]">{verifyTarget === 'email' ? `Code sent to ${newValue}` : `SMS sent to ${newValue}`}</DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <OTPInputRow code={verifyCode} setCode={setVerifyCode} refs={codeRefs} onPaste={(e) => handleCodePaste(e, setVerifyCode, codeRefs)} autoFocus />
+              <OTPInputRow value={verifyCode} onChange={setVerifyCode} autoFocus />
               <div className="text-center mt-4">
-                {countdown > 0 ? <p className="text-[12px] text-muted-foreground">Resend in <span className="text-foreground">{countdown}s</span></p> : <button type="button" className="text-[12px] text-emerald-600 hover:text-emerald-700" onClick={() => { setCountdown(60); toast.success('Code resent'); }}>Resend code</button>}
+                <CountdownTimer
+                  key={countdownKey}
+                  initialSeconds={60}
+                  onResend={() => { setCountdownKey(k => k + 1); toast.success('Code resent'); }}
+                />
               </div>
-              <p className="text-[11px] text-muted-foreground text-center mt-3 bg-gray-50 rounded-lg py-2 px-3">Demo: enter any 6 digits to verify</p>
+              <p className="text-[11px] text-muted-foreground text-center mt-3 bg-gray-50 rounded-lg py-2 px-3">Check the backend console for the OTP code</p>
             </div>
             <DialogFooter className="gap-2 sm:gap-0"><Button variant="outline" onClick={() => setVerifyStep('input')} className="rounded-lg"><ArrowLeft className="size-4 mr-1" /> Back</Button><Button onClick={handleVerifyCode} disabled={!codeComplete || isVerifying} className="rounded-lg">{isVerifying ? 'Verifying…' : 'Verify & Save'}</Button></DialogFooter>
           </>)}
@@ -511,7 +582,7 @@ export default function Profile() {
           {twoFAStep === 'verify' && (<>
             <DialogHeader><DialogTitle className="flex items-center gap-2 text-[16px]"><div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center"><ShieldCheck className="size-4 text-purple-600" /></div>Verify Setup</DialogTitle><DialogDescription className="text-[13px]">Enter the 6-digit code from your authenticator app.</DialogDescription></DialogHeader>
             <div className="py-4 space-y-4">
-              <OTPInputRow code={twoFACode} setCode={setTwoFACode} refs={twoFARefs} onPaste={(e) => handleCodePaste(e, setTwoFACode, twoFARefs)} autoFocus />
+              <OTPInputRow value={twoFACode} onChange={setTwoFACode} autoFocus />
               <p className="text-[11px] text-muted-foreground text-center bg-gray-50 rounded-lg py-2 px-3">Demo: enter any 6 digits to verify</p>
             </div>
             <DialogFooter className="gap-2 sm:gap-0"><Button variant="outline" onClick={() => setTwoFAStep('qr')} className="rounded-lg"><ArrowLeft className="size-4 mr-1" /> Back</Button><Button onClick={verify2FACode} disabled={!twoFACodeComplete} className="rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600">Verify</Button></DialogFooter>
