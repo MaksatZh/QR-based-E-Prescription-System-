@@ -71,7 +71,10 @@ router.post('/users', authenticate, authorize('admin', 'super_admin'), async (re
 
     const user = await prisma.user.create({
       data: {
-        ...data,
+        fullName: data.fullName,
+        email: data.email,
+        phone: data.phone,
+        role: data.role,
         passwordHash: tempPasswordHash,
         accountStatus: 'pending',
         activationToken,

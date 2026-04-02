@@ -19,13 +19,13 @@ const dispenseSchema = z.object({
 // POST /api/dispense/:prescriptionId
 router.post('/:prescriptionId', authenticate, authorize('pharmacist'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { prescriptionId } = req.params
+    const prescriptionId = req.params.prescriptionId as string
     const { items, note } = dispenseSchema.parse(req.body)
 
     const prescription = await prisma.prescription.findUnique({
       where: { id: prescriptionId },
       include: { medications: true },
-    })
+    }) as any
 
     if (!prescription) throw new AppError(404, 'Prescription not found')
 
@@ -89,7 +89,7 @@ router.post('/:prescriptionId', authenticate, authorize('pharmacist'), async (re
     const updatedPrescription = await prisma.prescription.findUnique({
       where: { id: prescriptionId },
       include: { patient: true, medications: true },
-    })
+    }) as any
 
     res.json({ dispenseEvent, prescription: updatedPrescription })
   } catch (err) {

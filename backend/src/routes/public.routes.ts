@@ -52,7 +52,7 @@ router.get('/prescription/:id', async (req: Request, res: Response, next: NextFu
 // GET /api/public/qr/:id — генерирует QR-код как base64 PNG
 router.get('/qr/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params
+    const id = req.params.id as string
 
     const prescription = await prisma.prescription.findUnique({ where: { id } })
     if (!prescription) throw new AppError(404, 'Prescription not found')

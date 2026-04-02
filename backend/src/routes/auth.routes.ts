@@ -288,6 +288,10 @@ router.post('/request-change', async (req: Request, res: Response, next: NextFun
       },
     })
 
+    // Fetch user to get fullName for email
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } })
+    if (!user) throw new AppError(404, 'User not found')
+
     // Send OTP to new email (only if field is email, phone OTP goes to email too)
     await sendOtpEmail(newValue, user.fullName, otpCode, field)
     console.log('OTP email sent to:', newValue)
