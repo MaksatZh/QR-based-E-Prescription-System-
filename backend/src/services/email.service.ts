@@ -1,19 +1,12 @@
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.GMAIL_USER!,
-    pass: process.env.GMAIL_APP_PASSWORD!,
-  },
-})
+const resend = new Resend(process.env.RESEND_API_KEY!)
 
-const FROM = `${process.env.FROM_NAME || 'E-Prescription System'} <${process.env.GMAIL_USER!}>`
+const FROM = 'E-Prescription System <onboarding@resend.dev>'
 
 async function send(to: string, subject: string, html: string) {
-  await transporter.sendMail({ from: FROM, to, subject, html })
+  const { error } = await resend.emails.send({ from: FROM, to, subject, html })
+  if (error) throw new Error(`Email failed: ${error.message}`)
 }
 
 export async function sendActivationEmail(to: string, fullName: string, token: string) {
@@ -85,15 +78,15 @@ export async function sendOtpEmail(to: string, fullName: string, otp: string, fi
 }
 
 export async function sendPrescriptionEmail(
-    to: string,
-    patientName: string,
-    doctorName: string,
-    prescriptionId: string,
-    medications: { name: string; dosage: string; qtyPrescribed: number }[]
+  to: string,
+  patientName: string,
+  doctorName: string,
+  prescriptionId: string,
+  medications: { name: string; dosage: string; qtyPrescribed: number }[]
 ) {
   const link = `${process.env.FRONTEND_URL}/patient/${prescriptionId}`
   const medsHtml = medications.map(m =>
-      `<tr>
+    `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;color:#111">${m.name}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;text-align:center">${m.dosage}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;text-align:center">${m.qtyPrescribed} шт.</td>
