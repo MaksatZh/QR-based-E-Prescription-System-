@@ -144,34 +144,34 @@ router.post('/', authenticate, authorize('doctor'), async (req: AuthRequest, res
     })
 
     await logAction(req.user!.userId, 'CREATE_PRESCRIPTION', 'Prescription', prescription.id,
-      `Created prescription for patient ${patient.fullName} (IIN: ${patient.iin})`,
-      prescription.id,
+        `Created prescription for patient ${patient.fullName} (IIN: ${patient.iin})`,
+        prescription.id,
     )
 
-    // Send prescription link to patient email
-    try {
-      const doctor = await prisma.user.findUnique({
-        where: { id: req.user!.userId },
-        select: { fullName: true },
-      })
-      await sendPrescriptionEmail(
-        patientRecord.email,
-        patientRecord.fullName,
-        doctor?.fullName || 'Врач',
-        prescription.id,
-        prescription.medications.map(m => ({
-          name: m.name,
-          dosage: m.dosage,
-          qtyPrescribed: m.qtyPrescribed,
-        }))
-      )
-      console.log('Prescription email sent to:', patientRecord.email)
-    } catch (emailErr) {
-      console.error('Failed to send prescription email:', emailErr)
-      // Don't fail the request if email fails
-    }
-
+    // Отвечаем клиенту сразу — не ждём email
     res.status(201).json({ prescription })
+
+    // Отправляем email в фоне
+    prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { fullName: true },
+    }).then(doctor => {
+      return sendPrescriptionEmail(
+          patientRecord.email,
+          patientRecord.fullName,
+          doctor?.fullName || 'Врач',
+          prescription.id,
+          prescription.medications.map(m => ({
+            name: m.name,
+            dosage: m.dosage,
+            qtyPrescribed: m.qtyPrescribed,
+          }))
+      )
+    }).then(() => {
+      console.log('Prescription email sent to:', patientRecord.email)
+    }).catch(emailErr => {
+      console.error('Failed to send prescription email:', emailErr)
+    })
   } catch (err) {
     next(err)
   }
@@ -245,7 +245,7 @@ router.patch('/:id', authenticate, authorize('doctor'), async (req: AuthRequest,
     }
 
     await logAction(req.user!.userId, 'EDIT_PRESCRIPTION', 'Prescription', prescription.id,
-      'Prescription edited', prescription.id)
+        'Prescription edited', prescription.id)
 
     const updated = await prisma.prescription.findUnique({
       where: { id: prescription.id },
@@ -275,8 +275,8 @@ router.post('/:id/cancel', authenticate, authorize('doctor'), async (req: AuthRe
     }
 
     const cancelReason = prescription.status === 'partially_dispensed'
-      ? `Remaining cancelled: ${reason || 'No reason provided'}`
-      : reason || 'Cancelled by doctor'
+        ? `Remaining cancelled: ${reason || 'No reason provided'}`
+        : reason || 'Cancelled by doctor'
 
     const updated = await prisma.prescription.update({
       where: { id: (req.params.id as string) },
@@ -289,7 +289,7 @@ router.post('/:id/cancel', authenticate, authorize('doctor'), async (req: AuthRe
     })
 
     await logAction(req.user!.userId, 'CANCEL_PRESCRIPTION', 'Prescription', prescription.id,
-      cancelReason, prescription.id)
+        cancelReason, prescription.id)
 
     res.json({ prescription: updated })
   } catch (err) {
