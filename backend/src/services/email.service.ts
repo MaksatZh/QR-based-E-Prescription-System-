@@ -1,7 +1,9 @@
 import nodemailer from 'nodemailer'
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
     user: process.env.GMAIL_USER!,
     pass: process.env.GMAIL_APP_PASSWORD!,
@@ -83,15 +85,15 @@ export async function sendOtpEmail(to: string, fullName: string, otp: string, fi
 }
 
 export async function sendPrescriptionEmail(
-  to: string,
-  patientName: string,
-  doctorName: string,
-  prescriptionId: string,
-  medications: { name: string; dosage: string; qtyPrescribed: number }[]
+    to: string,
+    patientName: string,
+    doctorName: string,
+    prescriptionId: string,
+    medications: { name: string; dosage: string; qtyPrescribed: number }[]
 ) {
   const link = `${process.env.FRONTEND_URL}/patient/${prescriptionId}`
   const medsHtml = medications.map(m =>
-    `<tr>
+      `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;color:#111">${m.name}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;text-align:center">${m.dosage}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;text-align:center">${m.qtyPrescribed} шт.</td>
