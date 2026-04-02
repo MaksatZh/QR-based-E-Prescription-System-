@@ -39,9 +39,9 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
     })
 
     const token = jwt.sign(
-      { userId: user.id, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions,
+        { userId: user.id, role: user.role },
+        process.env.JWT_SECRET!,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as jwt.SignOptions,
     )
 
     res.json({
@@ -63,7 +63,7 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
 // GET /api/auth/activate/:token — validate token, return user email
 router.get('/activate/:token', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { token } = req.params
+    const token = req.params.token as string
 
     const user = await prisma.user.findUnique({
       where: { activationToken: token },
@@ -84,7 +84,7 @@ router.get('/activate/:token', async (req: Request, res: Response, next: NextFun
 // POST /api/auth/activate/:token — set password and activate account
 router.post('/activate/:token', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { token } = req.params
+    const token = req.params.token as string
     const { password } = req.body
 
     if (!password || password.length < 8) {
@@ -139,11 +139,8 @@ router.post('/forgot-password', async (req: Request, res: Response, next: NextFu
       data: { resetToken, resetTokenExpiry },
     })
 
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`
-    console.log('\n========================================')
-    console.log('PASSWORD RESET LINK (demo):')
-    console.log(resetLink)
-    console.log('========================================\n')
+    await sendPasswordResetEmail(user.email, user.fullName, resetToken)
+    console.log('Password reset email sent to:', user.email)
 
     res.json({ message: 'If this email exists, a reset link has been sent.' })
   } catch (err) {
@@ -154,7 +151,7 @@ router.post('/forgot-password', async (req: Request, res: Response, next: NextFu
 // GET /api/auth/reset-password/:token — validate reset token
 router.get('/reset-password/:token', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { token } = req.params
+    const token = req.params.token as string
     const user = await prisma.user.findUnique({ where: { resetToken: token } })
 
     if (!user || !user.resetTokenExpiry) throw new AppError(404, 'Invalid or expired reset link')
@@ -169,7 +166,7 @@ router.get('/reset-password/:token', async (req: Request, res: Response, next: N
 // POST /api/auth/reset-password/:token — set new password
 router.post('/reset-password/:token', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { token } = req.params
+    const token = req.params.token as string
     const { password } = req.body
 
     if (!password || password.length < 8) throw new AppError(400, 'Password must be at least 8 characters')
@@ -291,12 +288,9 @@ router.post('/request-change', async (req: Request, res: Response, next: NextFun
       },
     })
 
-    console.log('\n========================================')
-    console.log(`OTP CODE for ${field} change (demo):`)
-    console.log(`New ${field}: ${newValue}`)
-    console.log(`OTP: ${otpCode}`)
-    console.log('(expires in 10 minutes)')
-    console.log('========================================\n')
+    // Send OTP to new email (only if field is email, phone OTP goes to email too)
+    await sendOtpEmail(newValue, user.fullName, otpCode, field)
+    console.log('OTP email sent to:', newValue)
 
     res.json({ message: `Verification code sent to ${newValue}` })
   } catch (err) {

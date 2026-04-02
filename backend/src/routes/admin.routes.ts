@@ -75,7 +75,7 @@ router.post('/users', authenticate, authorize('admin', 'super_admin'), async (re
         passwordHash: tempPasswordHash,
         accountStatus: 'pending',
         activationToken,
-        createdById: req.user!.userId,
+        createdBy: { connect: { id: req.user!.userId } },
       },
       select: {
         id: true, fullName: true, email: true, phone: true,
@@ -101,7 +101,7 @@ router.patch('/users/:id', authenticate, authorize('admin', 'super_admin'), asyn
     const data = updateUserSchema.parse(req.body)
     const isSuperAdmin = req.user!.role === 'super_admin'
 
-    const target = await prisma.user.findUnique({ where: { id: req.params.id } })
+    const target = await prisma.user.findUnique({ where: { id: (req.params.id as string) } })
     if (!target) throw new AppError(404, 'User not found')
 
     if (!isSuperAdmin && (target.role === 'admin' || target.role === 'super_admin')) {
@@ -109,7 +109,7 @@ router.patch('/users/:id', authenticate, authorize('admin', 'super_admin'), asyn
     }
 
     const user = await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       data,
       select: {
         id: true, fullName: true, email: true, phone: true,
@@ -129,11 +129,11 @@ router.patch('/users/:id', authenticate, authorize('admin', 'super_admin'), asyn
 // PATCH /api/admin/users/:id/toggle — заблокировать / разблокировать
 router.patch('/users/:id/toggle', authenticate, authorize('admin', 'super_admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    if (req.params.id === req.user!.userId) {
+    if ((req.params.id as string) === req.user!.userId) {
       throw new AppError(400, 'Cannot deactivate yourself')
     }
 
-    const target = await prisma.user.findUnique({ where: { id: req.params.id } })
+    const target = await prisma.user.findUnique({ where: { id: (req.params.id as string) } })
     if (!target) throw new AppError(404, 'User not found')
 
     const isSuperAdmin = req.user!.role === 'super_admin'
@@ -144,7 +144,7 @@ router.patch('/users/:id/toggle', authenticate, authorize('admin', 'super_admin'
     const newStatus = target.accountStatus === 'active' ? 'suspended' : 'active'
 
     const user = await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       data: { accountStatus: newStatus },
       select: { id: true, fullName: true, email: true, accountStatus: true },
     })

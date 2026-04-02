@@ -9,7 +9,7 @@ const router = Router()
 router.get('/prescription/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const prescription = await prisma.prescription.findUnique({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       include: {
         patient: { select: { fullName: true } },
         medications: {
