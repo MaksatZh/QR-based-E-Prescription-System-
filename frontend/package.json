@@ -1,5 +1,5 @@
 {
-  "name": "Task Manager (Community)",
+  "name": "E-Prescription",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -61,6 +61,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173"
   }
 }
