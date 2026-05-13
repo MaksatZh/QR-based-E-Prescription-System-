@@ -7,6 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── USERS ───────────────────────────────────────────────────────────────────
+
 model User {
   id               String          @id @default(uuid())
   fullName         String
@@ -22,18 +24,22 @@ model User {
   resetToken       String?         @unique
   resetTokenExpiry DateTime?
   lastActiveAt     DateTime?
+  pendingEmail     String?
+  pendingPhone     String?
+  otpCode          String?
+  otpExpiry        DateTime?
+  otpField         String?
+
   auditLogs        AuditLog[]
   dispenseEvents   DispenseEvent[]
   prescriptions    Prescription[]  @relation("DoctorPrescriptions")
   createdBy        User?           @relation("AdminCreatedUsers", fields: [createdById], references: [id])
   createdUsers     User[]          @relation("AdminCreatedUsers")
-  pendingEmail     String?
-  pendingPhone     String?
-  otpCode          String?
-  otpExpiry        DateTime?
-  otpField         String?   // 'email' или 'phone'
+
   @@map("users")
 }
+
+// ─── PATIENTS ────────────────────────────────────────────────────────────────
 
 model Patient {
   id            String         @id @default(uuid())
@@ -41,6 +47,8 @@ model Patient {
   iin           String
   phone         String
   email         String
+  birthDate     DateTime?
+  gender        String?
   createdAt     DateTime       @default(now())
   prescriptions Prescription[]
 
@@ -48,15 +56,77 @@ model Patient {
   @@map("patients")
 }
 
+// ─── DRUG REFERENCE ──────────────────────────────────────────────────────────
+
+model Drug {
+  id             String   @id @default(uuid())
+  mnn            String
+  tradeName      String?
+  atxCode        String
+  atxName        String?
+  form           String
+  routeOfAdmin   String
+  dosages        String?
+  isPrescription Boolean  @default(true)
+  isLgota        Boolean  @default(false)
+  minAge         Int?
+  maxAge         Int?
+  category       String?
+  warnings       String?
+  createdAt      DateTime @default(now())
+
+  diagnosisLinks DiagnosisDrugLink[]
+  interactionsA  DrugInteraction[]   @relation("DrugA")
+  interactionsB  DrugInteraction[]   @relation("DrugB")
+
+  @@index([mnn])
+  @@index([atxCode])
+  @@index([category])
+  @@map("drugs")
+}
+
+model DiagnosisDrugLink {
+  id            String @id @default(uuid())
+  diagnosisCode String
+  diagnosisName String
+  drugId        String
+  drug          Drug   @relation(fields: [drugId], references: [id])
+
+  @@index([diagnosisCode])
+  @@map("diagnosis_drug_links")
+}
+
+model DrugInteraction {
+  id          String              @id @default(uuid())
+  drugAId     String
+  drugBId     String
+  severity    InteractionSeverity
+  description String
+  drugA       Drug                @relation("DrugA", fields: [drugAId], references: [id])
+  drugB       Drug                @relation("DrugB", fields: [drugBId], references: [id])
+
+  @@unique([drugAId, drugBId])
+  @@map("drug_interactions")
+}
+
+// ─── PRESCRIPTIONS ───────────────────────────────────────────────────────────
+
 model Prescription {
-  id             String             @id @default(cuid())
-  patientId      String
-  doctorId       String
-  status         PrescriptionStatus @default(created)
-  createdAt      DateTime           @default(now())
-  expiresAt      DateTime
-  cancelledAt    DateTime?
-  cancelReason   String?
+  id              String             @id @default(cuid())
+  patientId       String
+  doctorId        String
+  status          PrescriptionStatus @default(created)
+  createdAt       DateTime           @default(now())
+  expiresAt       DateTime
+  cancelledAt     DateTime?
+  cancelReason    String?
+  diagnosisCode   String?
+  diagnosisName   String?
+  patientWeight   Float?
+  patientAge      Int?
+  patientCategory PatientCategory?
+  notes           String?
+
   auditLogs      AuditLog[]
   dispenseEvents DispenseEvent[]
   medications    PrescriptionItem[]
@@ -73,11 +143,18 @@ model PrescriptionItem {
   id             String         @id @default(uuid())
   prescriptionId String
   name           String
-  form           MedicationForm
+  form           String
   dosage         String
   qtyPrescribed  Int
   qtyDispensed   Int            @default(0)
   course         String
+  drugId         String?
+  atxCode        String?
+  routeOfAdmin   String?
+  startDate      DateTime?
+  durationDays   Int?
+  frequency      String?
+  instructions   String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   dispenseItems  DispenseItem[]
@@ -85,6 +162,8 @@ model PrescriptionItem {
 
   @@map("prescription_items")
 }
+
+// ─── DISPENSE ────────────────────────────────────────────────────────────────
 
 model DispenseEvent {
   id             String         @id @default(uuid())
@@ -111,6 +190,8 @@ model DispenseItem {
   @@map("dispense_items")
 }
 
+// ─── AUDIT ───────────────────────────────────────────────────────────────────
+
 model AuditLog {
   id             String        @id @default(uuid())
   userId         String
@@ -127,6 +208,22 @@ model AuditLog {
   @@index([entityType, entityId])
   @@map("audit_logs")
 }
+
+
+// ─── ICD-10 СПРАВОЧНИК ────────────────────────────────────────────────────────
+
+model ICD10 {
+  id            String @id @default(uuid())
+  code          String @unique // I10, J18 и т.д.
+  name          String // Название на русском
+  groupCode     String? // Код группы из MCB-2
+
+  @@index([code])
+  @@index([name])
+  @@map("icd10")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
 
 enum UserRole {
   doctor
@@ -150,13 +247,13 @@ enum PrescriptionStatus {
   expired
 }
 
-enum MedicationForm {
-  tablets
-  capsules
-  ampoules
-  syrup
-  drops
-  ointment
-  injection
-  other
+enum PatientCategory {
+  child
+  adult
+  elderly
+}
+
+enum InteractionSeverity {
+  warning
+  contraindicated
 }

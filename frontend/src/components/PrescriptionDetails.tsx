@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import { prescriptionApi, publicApi } from '../lib/api';
 import { Button } from './ui/button';
 import {
-  ArrowLeft, Calendar, QrCode, AlertTriangle, Edit, XCircle, CheckCircle, Clock, Copy
+  ArrowLeft, Calendar, QrCode, AlertTriangle, Edit, XCircle, CheckCircle, Clock, Copy, Send, Loader2
 } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -22,6 +22,7 @@ export default function PrescriptionDetails() {
   const [patientUrl, setPatientUrl] = useState<string>('');
   const [cancelReason, setCancelReason] = useState('');
   const [loading, setLoading] = useState(true);
+  const [resendLoading, setResendLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -51,6 +52,23 @@ export default function PrescriptionDetails() {
 
   const copyUrl = () => {
     navigator.clipboard?.writeText(patientUrl).then(() => toast.success('Link copied!')).catch(() => {});
+  };
+
+  const handleResendEmail = async () => {
+    setResendLoading(true);
+    try {
+      const res = await fetch(`${(import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api'}/prescriptions/${id}/resend-email`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send');
+      toast.success(`QR code sent to ${prescription?.patient?.email}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send email');
+    } finally {
+      setResendLoading(false);
+    }
   };
 
   if (loading) {
@@ -211,12 +229,25 @@ export default function PrescriptionDetails() {
               </div>
             )}
             <p className="text-[12px] text-muted-foreground mb-2">Sent to patient via SMS and email</p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-4">
               <code className="text-[11px] text-muted-foreground bg-gray-50 px-2 py-1 rounded border font-mono max-w-[260px] truncate">{patientUrl}</code>
               <button onClick={copyUrl} className="text-muted-foreground hover:text-foreground transition-colors">
                 <Copy className="size-3.5" />
               </button>
             </div>
+            {['active', 'created', 'partially_dispensed'].includes(prescription.status) && (
+              <button
+                onClick={handleResendEmail}
+                disabled={resendLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-[13px] text-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resendLoading
+                  ? <Loader2 className="size-3.5 animate-spin" />
+                  : <Send className="size-3.5" />
+                }
+                {resendLoading ? 'Sending…' : 'Resend QR to patient'}
+              </button>
+            )}
           </div>
         </div>
 

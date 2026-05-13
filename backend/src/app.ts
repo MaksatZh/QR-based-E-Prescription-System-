@@ -5,12 +5,14 @@ import cron from 'node-cron'
 import { prisma } from './prisma/client'
 import { errorHandler } from './middleware/errorHandler'
 import { expirePrescriptions } from './services/prescription.service'
+import { cleanupPendingUsers } from './services/user.service'
 
 import authRoutes         from './routes/auth.routes'
 import prescriptionRoutes from './routes/prescription.routes'
 import dispenseRoutes     from './routes/dispense.routes'
 import adminRoutes        from './routes/admin.routes'
 import publicRoutes       from './routes/public.routes'
+import drugRoutes         from './routes/drug.routes'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -28,12 +30,18 @@ app.use('/api/prescriptions', prescriptionRoutes)
 app.use('/api/dispense',      dispenseRoutes)
 app.use('/api/admin',         adminRoutes)
 app.use('/api/public',        publicRoutes)
+app.use('/api/drugs',         drugRoutes)
 
 app.use(errorHandler)
 
 cron.schedule('0 */6 * * *', async () => {
     const count = await expirePrescriptions()
-    if (count > 0) console.log(`Expired ${count} prescription(s)`)
+    if (count > 0) console.log(`⏰ Expired ${count} prescription(s)`)
+})
+
+cron.schedule('0 * * * *', async () => {
+    const count = await cleanupPendingUsers()
+    if (count > 0) console.log(`🗑️ Deleted ${count} unconfirmed user(s)`)
 })
 
 async function bootstrap() {

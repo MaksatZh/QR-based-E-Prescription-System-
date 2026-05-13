@@ -6,7 +6,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import {
-  UserPlus, Edit, Search, ToggleLeft, ToggleRight, Mail, ArrowUpDown,
+  UserPlus, Edit, Search, ToggleLeft, ToggleRight, Mail, ArrowUpDown, Send, Loader2,
   Shield, Crown, Users, Clock, Activity, Zap,
   Lock, Unlock, FileText, Stethoscope, Pill,
   CheckCircle2, XCircle, Timer, KeyRound, BarChart3
@@ -33,6 +33,7 @@ export default function AdminPortal() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [showUserDialog, setShowUserDialog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [formData, setFormData] = useState({
@@ -124,12 +125,24 @@ export default function AdminPortal() {
     }
   };
 
-  const handleResendActivation = (user: any) => {
+  const handleResendActivation = async (user: any) => {
     if (user.accountStatus !== 'pending') { toast.error('Already activated'); return; }
-    const link = `${window.location.origin}/activate/${user.activationToken}`;
-    navigator.clipboard?.writeText(link)
-      .then(() => toast.success('Activation link copied!', { duration: 6000 }))
-      .catch(() => toast.info(link, { duration: 10000 }));
+    setResendingId(user.id);
+    try {
+      const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/admin/users/${user.id}/resend-activation`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send');
+      toast.success(`Activation email sent to ${user.email}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send activation email');
+    } finally {
+      setResendingId(null);
+    }
   };
 
   const getRoleBadge = (role: string) => {
@@ -336,8 +349,17 @@ export default function AdminPortal() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
                           {u.accountStatus === 'pending' && (
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:bg-amber-50 hover:text-amber-600" onClick={() => handleResendActivation(u)} title="Copy activation link">
-                              <KeyRound className="size-3.5" />
+                            <Button
+                              variant="ghost" size="sm"
+                              className="h-7 w-7 p-0 hover:bg-amber-50 hover:text-amber-600"
+                              onClick={() => handleResendActivation(u)}
+                              title="Resend activation email"
+                              disabled={resendingId === u.id}
+                            >
+                              {resendingId === u.id
+                                ? <Loader2 className="size-3.5 animate-spin" />
+                                : <Send className="size-3.5" />
+                              }
                             </Button>
                           )}
                           {canManageUser(u) && u.id !== currentUser?.id && (

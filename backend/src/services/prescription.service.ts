@@ -30,7 +30,7 @@ export async function recalcPrescriptionStatus(prescriptionId: string): Promise<
   return status
 }
 
-// Помечает истёкшие рецепты (вызывается cron-джобом)
+// Пометка истёкших рецептов (вызывается cron-джобом)
 export async function expirePrescriptions(): Promise<number> {
   const result = await prisma.prescription.updateMany({
     where: {

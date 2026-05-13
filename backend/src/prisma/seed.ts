@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, AccountStatus, MedicationForm } from '@prisma/client'
+import { PrismaClient, UserRole, AccountStatus } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
@@ -125,7 +125,7 @@ async function main() {
                 create: [
                     {
                         name: 'Amoxicillin',
-                        form: MedicationForm.tablets,
+                        form: 'tablets',
                         dosage: '500mg',
                         qtyPrescribed: 30,
                         qtyDispensed: 0,
@@ -133,7 +133,7 @@ async function main() {
                     },
                     {
                         name: 'Ibuprofen',
-                        form: MedicationForm.tablets,
+                        form: 'tablets',
                         dosage: '400mg',
                         qtyPrescribed: 20,
                         qtyDispensed: 0,
@@ -159,7 +159,7 @@ async function main() {
                 create: [
                     {
                         name: 'Lisinopril',
-                        form: MedicationForm.tablets,
+                        form: 'tablets',
                         dosage: '10mg',
                         qtyPrescribed: 30,
                         qtyDispensed: 15,
@@ -167,7 +167,7 @@ async function main() {
                     },
                     {
                         name: 'Atorvastatin',
-                        form: MedicationForm.tablets,
+                        form: 'tablets',
                         dosage: '20mg',
                         qtyPrescribed: 30,
                         qtyDispensed: 15,

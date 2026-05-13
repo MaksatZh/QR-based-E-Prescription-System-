@@ -71,10 +71,10 @@ router.post('/users', authenticate, authorize('admin', 'super_admin'), async (re
 
     const user = await prisma.user.create({
       data: {
-        fullName: data.fullName,
-        email: data.email,
-        phone: data.phone,
-        role: data.role,
+        fullName: data.fullName!,
+        email: data.email!,
+        phone: data.phone!,
+        role: data.role!,
         passwordHash: tempPasswordHash,
         accountStatus: 'pending',
         activationToken,
@@ -196,6 +196,33 @@ router.get('/stats', authenticate, authorize('admin', 'super_admin'), async (_re
     ])
 
     res.json({ totalUsers, totalPrescriptions, activeRx, dispensedRx, cancelledRx })
+  } catch (err) {
+    next(err)
+  }
+})
+
+
+// POST /api/admin/users/:id/resend-activation — повторная отправка письма активации
+router.post('/users/:id/resend-activation', authenticate, authorize('admin', 'super_admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id as string },
+      select: { id: true, fullName: true, email: true, accountStatus: true, activationToken: true, role: true },
+    })
+
+    if (!user) throw new AppError(404, 'User not found')
+    if (user.accountStatus !== 'pending') throw new AppError(400, 'User is already activated')
+    if (!user.activationToken) throw new AppError(400, 'No activation token found')
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+    const activationLink = `${frontendUrl}/activate/${user.activationToken}`
+
+    await sendActivationEmail(user.email, user.fullName, activationLink)
+
+    await logAction(req.user!.userId, 'RESEND_ACTIVATION', 'User', user.id,
+      `Resent activation email to ${user.email}`)
+
+    res.json({ success: true, message: `Activation email sent to ${user.email}` })
   } catch (err) {
     next(err)
   }

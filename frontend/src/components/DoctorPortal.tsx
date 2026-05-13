@@ -34,7 +34,8 @@ export default function DoctorPortal() {
         if (status === 'active') return p.status === 'active' || p.status === 'created';
         if (status === 'in_progress') return p.status === 'partially_dispensed';
         if (status === 'completed') return p.status === 'dispensed';
-        if (status === 'cancelled') return p.status === 'cancelled' || p.status === 'expired';
+        if (status === 'cancelled') return p.status === 'cancelled';
+        if (status === 'expired') return p.status === 'expired';
         return true;
       });
     }
@@ -75,6 +76,7 @@ export default function DoctorPortal() {
   const inProgressPrescriptions  = filterPrescriptions(prescriptions, 'in_progress');
   const completedPrescriptions   = filterPrescriptions(prescriptions, 'completed');
   const cancelledPrescriptions   = filterPrescriptions(prescriptions, 'cancelled');
+  const expiredPrescriptions     = filterPrescriptions(prescriptions, 'expired');
   const allPrescriptions         = filterPrescriptions(prescriptions);
 
   const hour = new Date().getHours();
@@ -85,6 +87,7 @@ export default function DoctorPortal() {
     { label: 'Active', value: activePrescriptions.length, icon: Activity, gradient: 'from-emerald-500 to-emerald-700', bgLight: 'bg-emerald-50', iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600' },
     { label: 'In Progress', value: inProgressPrescriptions.length, icon: TrendingUp, gradient: 'from-amber-500 to-amber-700', bgLight: 'bg-amber-50', iconBg: 'bg-amber-100', iconColor: 'text-amber-600' },
     { label: 'Completed', value: completedPrescriptions.length, icon: CheckCircle2, gradient: 'from-blue-500 to-blue-700', bgLight: 'bg-blue-50', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+    { label: 'Expired', value: expiredPrescriptions.length, icon: Clock, gradient: 'from-gray-400 to-gray-600', bgLight: 'bg-gray-50', iconBg: 'bg-gray-100', iconColor: 'text-gray-500' },
   ];
 
   const PrescriptionCard = ({ p }: { p: Prescription }) => {
@@ -243,7 +246,7 @@ export default function DoctorPortal() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         {stats.map((s) => {
           const Icon = s.icon;
           return (
@@ -350,6 +353,7 @@ export default function DoctorPortal() {
                 { value: 'in_progress', label: 'In Progress', count: inProgressPrescriptions.length },
                 { value: 'completed', label: 'Completed', count: completedPrescriptions.length },
                 { value: 'cancelled', label: 'Cancelled', count: cancelledPrescriptions.length },
+                { value: 'expired', label: 'Expired', count: expiredPrescriptions.length },
               ].map(tab => (
                 <TabsTrigger
                   key={tab.value}
@@ -367,6 +371,7 @@ export default function DoctorPortal() {
           <TabsContent value="in_progress" className="mt-0"><PrescriptionTable prescriptions={inProgressPrescriptions} /></TabsContent>
           <TabsContent value="completed" className="mt-0"><PrescriptionTable prescriptions={completedPrescriptions} /></TabsContent>
           <TabsContent value="cancelled" className="mt-0"><PrescriptionTable prescriptions={cancelledPrescriptions} /></TabsContent>
+          <TabsContent value="expired" className="mt-0"><PrescriptionTable prescriptions={expiredPrescriptions} /></TabsContent>
         </Tabs>
       </div>
     </div>
