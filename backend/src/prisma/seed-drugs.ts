@@ -244,7 +244,7 @@ async function importInteractions(filePath: string, allDrugs: any[]) {
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-    const dataDir = path.join(__dirname, '../../data')
+    const dataDir = path.join(process.cwd(), 'data')
     const registryPath = path.join(dataDir, 'Выгрузка_из_реестр.xlsx')
     const icd10Path = path.join(dataDir, 'mkb10.csv')
     const interactionsPath = path.join(dataDir, 'db_drug_interactions.csv')
