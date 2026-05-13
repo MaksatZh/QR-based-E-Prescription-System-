@@ -11,6 +11,7 @@ RUN npm ci --legacy-peer-deps
 
 COPY src ./src
 COPY tsconfig.json ./
+COPY data ./data
 
 RUN npm run build
 RUN npx prisma generate
