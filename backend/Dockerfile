@@ -13,6 +13,9 @@ COPY src ./src
 COPY tsconfig.json ./
 COPY data ./data
 
+# Force cache bust
+ARG CACHEBUST=2
+
 RUN npm run build
 RUN npx prisma generate
 
