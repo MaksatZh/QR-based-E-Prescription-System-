@@ -129,6 +129,7 @@ async function importICD10(filePath: string) {
 
 async function importDiagnosisLinks(allDrugs: any[]) {
     console.log(`\n🔗 Step 3: Creating diagnosis-drug links`)
+
     const defaultLinks = [
         { diagnosisCode: 'I10', diagnosisName: 'Эссенциальная (первичная) гипертензия', atxPrefixes: ['C02', 'C03', 'C07', 'C08', 'C09'] },
         { diagnosisCode: 'I11', diagnosisName: 'Гипертензивная болезнь сердца', atxPrefixes: ['C07', 'C08', 'C09'] },
@@ -146,20 +147,41 @@ async function importDiagnosisLinks(allDrugs: any[]) {
     ]
 
     await prisma.diagnosisDrugLink.deleteMany()
-    let linkCount = 0
+
+    const linksToCreate: any[] = []
+
     for (const link of defaultLinks) {
-        const matching = allDrugs.filter(d => link.atxPrefixes.some(p => d.atxCode.startsWith(p)))
+        const matching = allDrugs.filter(d =>
+            d.atxCode &&
+            link.atxPrefixes.some(p => d.atxCode.startsWith(p))
+        )
+
         for (const drug of matching) {
-            const id = `${link.diagnosisCode}-${drug.id}`
-            await prisma.diagnosisDrugLink.upsert({
-                where: { id },
-                create: { id, diagnosisCode: link.diagnosisCode, diagnosisName: link.diagnosisName, drugId: drug.id },
-                update: {},
+            linksToCreate.push({
+                id: `${link.diagnosisCode}-${drug.id}`,
+                diagnosisCode: link.diagnosisCode,
+                diagnosisName: link.diagnosisName,
+                drugId: drug.id,
             })
-            linkCount++
         }
     }
-    console.log(`   ✅ Created ${linkCount} diagnosis-drug links`)
+
+    console.log(`   Total links: ${linksToCreate.length}`)
+
+    const chunkSize = 1000
+
+    for (let i = 0; i < linksToCreate.length; i += chunkSize) {
+        const chunk = linksToCreate.slice(i, i + chunkSize)
+
+        await prisma.diagnosisDrugLink.createMany({
+            data: chunk,
+            skipDuplicates: true,
+        })
+
+        console.log(`   Inserted ${Math.min(i + chunk.length, linksToCreate.length)} / ${linksToCreate.length}`)
+    }
+
+    console.log(`   ✅ Created ${linksToCreate.length} diagnosis-drug links`)
 }
 
 // ─── STEP 4: IMPORT DRUG INTERACTIONS ────────────────────────────────────────
