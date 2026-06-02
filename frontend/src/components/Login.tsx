@@ -381,6 +381,18 @@ export default function Login() {
             </div>
           </div>
 
+        {/* API Portal Link */}
+        <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+          <p className="text-[12px] text-muted-foreground mb-2">Are you a developer or medical organization?</p>
+          <button
+            type="button"
+            onClick={() => window.location.href = '/developer'}
+            className="inline-flex items-center gap-2 text-[13px] font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+          >
+            <span>🔑</span>
+            Get API Key for Integration
+          </button>
+        </div>
 
         </div>
       </div>

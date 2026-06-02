@@ -13,6 +13,11 @@ import ActivateAccount from "./components/ActivateAccount";
 import RecentActivity from "./components/RecentActivity";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
+import PortalLanding from "./components/portal/PortalLanding";
+import PortalRegister from "./components/portal/PortalRegister";
+import PortalLogin from "./components/portal/PortalLogin";
+import PortalDashboard from "./components/portal/PortalDashboard";
+import PortalDocs from "./components/portal/PortalDocs";
 
 export const router = createBrowserRouter([
   {
@@ -35,6 +40,28 @@ export const router = createBrowserRouter([
     path: "/patient/:prescriptionId",
     Component: PatientView,
   },
+  // ─── Developer Portal (без DashboardLayout) ───
+  {
+    path: "/developer",
+    Component: PortalLanding,
+  },
+  {
+    path: "/developer/register",
+    Component: PortalRegister,
+  },
+  {
+    path: "/developer/login",
+    Component: PortalLogin,
+  },
+  {
+    path: "/developer/dashboard",
+    Component: PortalDashboard,
+  },
+  {
+    path: "/developer/docs",
+    Component: PortalDocs,
+  },
+  // ─── Main Dashboard ───────────────────────────
   {
     path: "/dashboard",
     Component: DashboardLayout,

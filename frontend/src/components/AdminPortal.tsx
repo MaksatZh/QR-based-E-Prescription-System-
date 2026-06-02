@@ -22,6 +22,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from './ui/table';
 
+const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3001/api';
+const getAdminToken = () => localStorage.getItem('token') || '';
+
 export default function AdminPortal() {
   const currentUser = getCurrentUser();
   const isSuperAdmin = currentUser?.role === 'super_admin';
@@ -33,7 +36,13 @@ export default function AdminPortal() {
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [showUserDialog, setShowUserDialog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [orgsLoading, setOrgsLoading] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
+  const [selectedOrg, setSelectedOrg] = useState<any | null>(null);
+  const [orgApiKeys, setOrgApiKeys] = useState<any[]>([]);
+  const [orgPrescriptions, setOrgPrescriptions] = useState<any[]>([]);
+  const [orgDetailsLoading, setOrgDetailsLoading] = useState(false);
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [formData, setFormData] = useState({
@@ -58,6 +67,64 @@ export default function AdminPortal() {
     } catch (err: any) {
       toast.error(err.message || 'Failed to load data');
     }
+  };
+
+  const loadOrganizations = async () => {
+    setOrgsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/organizations`, {
+        headers: { Authorization: `Bearer ${getAdminToken()}` },
+      });
+      const data = await res.json();
+      setOrganizations(data.organizations || []);
+    } catch {}
+    finally { setOrgsLoading(false); }
+  };
+
+  const approveOrg = async (orgId: string, orgEmail: string) => {
+    try {
+      await fetch(`${API_URL}/admin/organizations/${orgId}/approve`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${getAdminToken()}` },
+      });
+      setOrganizations(prev => prev.map(o => o.id === orgId ? { ...o, status: 'active', approvedAt: new Date() } : o));
+      toast.success(`Organization approved. Email sent to ${orgEmail}`);
+    } catch { toast.error('Failed to approve'); }
+  };
+
+  const suspendOrg = async (orgId: string) => {
+    try {
+      await fetch(`${API_URL}/admin/organizations/${orgId}/suspend`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${getAdminToken()}` },
+      });
+      setOrganizations(prev => prev.map(o => o.id === orgId ? { ...o, status: 'suspended' } : o));
+      toast.success('Organization suspended');
+    } catch { toast.error('Failed to suspend'); }
+  };
+
+  const loadOrgDetails = async (org: any) => {
+    setSelectedOrg(org);
+    setOrgDetailsLoading(true);
+    setOrgApiKeys([]);
+    setOrgPrescriptions([]);
+    try {
+      const keysRes = await fetch(`${API_URL}/admin/organizations/${org.id}/keys`, {
+        headers: { Authorization: `Bearer ${getAdminToken()}` },
+      });
+      if (keysRes.ok) {
+        const keysData = await keysRes.json();
+        setOrgApiKeys(keysData.keys || []);
+      }
+      const rxRes = await fetch(`${API_URL}/admin/prescriptions?orgName=${encodeURIComponent(org.name)}`, {
+        headers: { Authorization: `Bearer ${getAdminToken()}` },
+      });
+      if (rxRes.ok) {
+        const rxData = await rxRes.json();
+        setOrgPrescriptions(rxData.prescriptions || []);
+      }
+    } catch {}
+    finally { setOrgDetailsLoading(false); }
   };
 
   const filteredUsers = users.filter(u =>
@@ -270,6 +337,9 @@ export default function AdminPortal() {
           <TabsTrigger value="audit" className="rounded-full data-[state=active]:bg-[#111827] data-[state=active]:text-white px-4 text-[12px] transition-all">
             Audit Log <span className="ml-1 opacity-60">({auditLogs.length})</span>
           </TabsTrigger>
+          <TabsTrigger value="organizations" className="rounded-full data-[state=active]:bg-[#111827] data-[state=active]:text-white px-4 text-[12px] transition-all" onClick={loadOrganizations}>
+            API Organizations <span className="ml-1 opacity-60">({organizations.length})</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* ─── Users Tab ─────────────────────────────────── */}
@@ -470,6 +540,149 @@ export default function AdminPortal() {
             </div>
           </div>
         </TabsContent>
+
+        {/* ─── Organizations Tab ──────────────────────────────── */}
+        <TabsContent value="organizations" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left — список организаций */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                <div>
+                  <p className="text-[14px] font-semibold text-gray-900">API Organizations</p>
+                  <p className="text-[12px] text-muted-foreground">Click to view details & logs</p>
+                </div>
+                <span className="text-[12px] bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full font-medium">{organizations.length} total</span>
+              </div>
+              {orgsLoading ? (
+                <div className="py-16 text-center text-muted-foreground text-[13px]">Loading…</div>
+              ) : organizations.length === 0 ? (
+                <div className="py-16 text-center text-muted-foreground text-[13px]">No organizations yet</div>
+              ) : (
+                <div className="divide-y">
+                  {organizations.map((org: any) => (
+                    <div key={org.id} onClick={() => loadOrgDetails(org)}
+                      className={`px-5 py-4 cursor-pointer transition-colors ${selectedOrg?.id === org.id ? 'bg-indigo-50 border-l-4 border-l-indigo-500' : 'hover:bg-gray-50'}`}>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[11px] font-bold shrink-0">
+                            {org.name.slice(0,2).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-medium text-gray-900 truncate">{org.name}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">{org.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${org.status === 'active' ? 'bg-emerald-50 text-emerald-700' : org.status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600'}`}>{org.status}</span>
+                          {org.apiKeys && <span className="text-[10px] text-muted-foreground">{org.apiKeys.filter((k:any)=>k.isActive).length} active keys</span>}
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">Registered: {new Date(org.createdAt).toLocaleDateString()}</p>
+                      <div className="flex gap-2 mt-2">
+                        {org.status === 'pending' && <button onClick={e=>{e.stopPropagation();approveOrg(org.id,org.email);}} className="px-2.5 py-1 bg-emerald-600 text-white text-[11px] rounded-md hover:bg-emerald-700">Approve</button>}
+                        {org.status === 'active' && <button onClick={e=>{e.stopPropagation();suspendOrg(org.id);}} className="px-2.5 py-1 border border-red-200 text-red-600 text-[11px] rounded-md hover:bg-red-50">Suspend</button>}
+                        {org.status === 'suspended' && <button onClick={e=>{e.stopPropagation();approveOrg(org.id,org.email);}} className="px-2.5 py-1 border border-emerald-200 text-emerald-600 text-[11px] rounded-md hover:bg-emerald-50">Reactivate</button>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right — детали организации */}
+            <div className="space-y-4">
+              {!selectedOrg ? (
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-center h-48">
+                  <div className="text-center">
+                    <p className="text-[32px] mb-2">👈</p>
+                    <p className="text-[13px] text-muted-foreground">Select an organization to view details</p>
+                  </div>
+                </div>
+              ) : orgDetailsLoading ? (
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm flex items-center justify-center h-48">
+                  <div className="text-[13px] text-muted-foreground">Loading…</div>
+                </div>
+              ) : (
+                <>
+                  {/* Org info */}
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold">{selectedOrg.name.slice(0,2).toUpperCase()}</div>
+                      <div>
+                        <p className="text-[15px] font-semibold text-gray-900">{selectedOrg.name}</p>
+                        <p className="text-[12px] text-muted-foreground">{selectedOrg.email}</p>
+                      </div>
+                    </div>
+                    {selectedOrg.website && <p className="text-[12px] text-blue-600 mb-1">🌐 {selectedOrg.website}</p>}
+                    {selectedOrg.phone && <p className="text-[12px] text-muted-foreground mb-1">📞 {selectedOrg.phone}</p>}
+                    {selectedOrg.description && <p className="text-[12px] text-muted-foreground mt-2 p-3 bg-gray-50 rounded-lg">{selectedOrg.description}</p>}
+                  </div>
+
+                  {/* API Keys */}
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                      <p className="text-[13px] font-semibold text-gray-900">🔑 API Keys</p>
+                      <span className="text-[11px] text-muted-foreground">{orgApiKeys.length} total · {orgApiKeys.filter(k=>k.isActive).length} active</span>
+                    </div>
+                    {orgApiKeys.length === 0 ? (
+                      <div className="py-6 text-center text-[12px] text-muted-foreground">No API keys created yet</div>
+                    ) : (
+                      <div className="divide-y">
+                        {orgApiKeys.map((key: any) => (
+                          <div key={key.id} className="px-5 py-3 flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[13px] font-medium">{key.name}</span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${key.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{key.isActive ? 'Active' : 'Revoked'}</span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                Created {new Date(key.createdAt).toLocaleDateString()}
+                                {key.lastUsedAt && ` · Last used ${new Date(key.lastUsedAt).toLocaleDateString()}`}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[16px] font-bold text-indigo-600">{key.requestCount}</p>
+                              <p className="text-[10px] text-muted-foreground">requests</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Prescriptions via API */}
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                      <p className="text-[13px] font-semibold text-gray-900">📋 Prescriptions via API</p>
+                      <span className="text-[11px] text-muted-foreground">{orgPrescriptions.length} total</span>
+                    </div>
+                    {orgPrescriptions.length === 0 ? (
+                      <div className="py-6 text-center text-[12px] text-muted-foreground">No prescriptions created yet</div>
+                    ) : (
+                      <div className="divide-y max-h-64 overflow-y-auto">
+                        {orgPrescriptions.map((rx: any) => (
+                          <div key={rx.id} className="px-5 py-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-[12px] font-mono font-medium text-gray-700">Rx-{rx.id.slice(-8)}</p>
+                                <p className="text-[11px] text-muted-foreground">{rx.patient?.fullName} · IIN: {rx.patient?.iin}</p>
+                              </div>
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${rx.status==='active'?'bg-emerald-50 text-emerald-700':rx.status==='dispensed'?'bg-blue-50 text-blue-700':rx.status==='expired'?'bg-gray-100 text-gray-500':'bg-red-50 text-red-600'}`}>{rx.status}</span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {new Date(rx.createdAt).toLocaleDateString()} · {rx.medications?.length || 0} medications
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
       </Tabs>
 
       {/* User Dialog */}

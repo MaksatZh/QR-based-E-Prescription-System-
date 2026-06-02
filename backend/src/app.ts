@@ -13,6 +13,8 @@ import dispenseRoutes     from './routes/dispense.routes'
 import adminRoutes        from './routes/admin.routes'
 import publicRoutes       from './routes/public.routes'
 import drugRoutes         from './routes/drug.routes'
+import portalRoutes       from './routes/portal.routes'
+import externalRoutes     from './routes/external.routes'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -31,6 +33,8 @@ app.use('/api/dispense',      dispenseRoutes)
 app.use('/api/admin',         adminRoutes)
 app.use('/api/public',        publicRoutes)
 app.use('/api/drugs',         drugRoutes)
+app.use('/api/portal',        portalRoutes)
+app.use('/api/external',      externalRoutes)
 
 app.use(errorHandler)
 

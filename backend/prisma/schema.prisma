@@ -209,18 +209,51 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-
-// ─── ICD-10 СПРАВОЧНИК ────────────────────────────────────────────────────────
+// ─── ICD-10 ──────────────────────────────────────────────────────────────────
 
 model ICD10 {
-  id            String @id @default(uuid())
-  code          String @unique // I10, J18 и т.д.
-  name          String // Название на русском
-  groupCode     String? // Код группы из MCB-2
+  id        String  @id @default(uuid())
+  code      String  @unique
+  name      String
+  groupCode String?
 
   @@index([code])
   @@index([name])
   @@map("icd10")
+}
+
+// ─── API PORTAL ──────────────────────────────────────────────────────────────
+
+model Organization {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  website      String?
+  phone        String?
+  description  String?
+  status       OrgStatus @default(pending)
+  createdAt    DateTime  @default(now())
+  approvedAt   DateTime?
+  apiKeys      ApiKey[]
+
+  @@map("organizations")
+}
+
+model ApiKey {
+  id             String       @id @default(uuid())
+  key            String       @unique
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  lastUsedAt     DateTime?
+  requestCount   Int          @default(0)
+  revokedAt      DateTime?
+
+  @@index([key])
+  @@map("api_keys")
 }
 
 // ─── ENUMS ───────────────────────────────────────────────────────────────────
@@ -256,4 +289,10 @@ enum PatientCategory {
 enum InteractionSeverity {
   warning
   contraindicated
+}
+
+enum OrgStatus {
+  pending
+  active
+  suspended
 }

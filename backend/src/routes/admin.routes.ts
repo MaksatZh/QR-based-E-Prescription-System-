@@ -228,4 +228,89 @@ router.post('/users/:id/resend-activation', authenticate, authorize('admin', 'su
   }
 })
 
+
+// ─── GET /api/admin/organizations ────────────────────────────────────────────
+
+router.get('/organizations', authenticate, authorize('admin', 'super_admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const organizations = await prisma.organization.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { apiKeys: { select: { id: true, isActive: true } } },
+    })
+    res.json({ organizations })
+  } catch (err) { next(err) }
+})
+
+// ─── PATCH /api/admin/organizations/:id/approve ───────────────────────────────
+
+router.patch('/organizations/:id/approve', authenticate, authorize('admin', 'super_admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const org = await prisma.organization.update({
+      where: { id: req.params.id as string },
+      data: { status: 'active', approvedAt: new Date() },
+    })
+    try {
+      const { sendOrgApprovedEmail } = await import('../services/email.service')
+      await sendOrgApprovedEmail(org.email, org.name)
+    } catch {}
+    await logAction(req.user!.userId, 'APPROVE_ORGANIZATION', 'Organization', org.id, `Approved organization: ${org.name}`)
+    res.json({ organization: org })
+  } catch (err) { next(err) }
+})
+
+// ─── PATCH /api/admin/organizations/:id/suspend ───────────────────────────────
+
+router.patch('/organizations/:id/suspend', authenticate, authorize('admin', 'super_admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const org = await prisma.organization.update({
+      where: { id: req.params.id as string },
+      data: { status: 'suspended' },
+    })
+    try {
+      const { sendOrgSuspendedEmail } = await import('../services/email.service')
+      await sendOrgSuspendedEmail(org.email, org.name)
+    } catch {}
+    await logAction(req.user!.userId, 'SUSPEND_ORGANIZATION', 'Organization', org.id, `Suspended organization: ${org.name}`)
+    res.json({ organization: org })
+  } catch (err) { next(err) }
+})
+
+
+// ─── GET /api/admin/organizations/:id/keys ───────────────────────────────────
+
+router.get('/organizations/:id/keys', authenticate, authorize('admin', 'super_admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const keys = await prisma.apiKey.findMany({
+      where: { organizationId: req.params.id as string },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, name: true, isActive: true,
+        createdAt: true, lastUsedAt: true,
+        requestCount: true, revokedAt: true,
+      },
+    })
+    res.json({ keys })
+  } catch (err) { next(err) }
+})
+
+// ─── GET /api/admin/prescriptions?orgName= ───────────────────────────────────
+
+router.get('/prescriptions', authenticate, authorize('admin', 'super_admin'), async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const orgName = req.query.orgName as string
+    const prescriptions = await prisma.prescription.findMany({
+      where: orgName ? {
+        notes: { contains: orgName, mode: 'insensitive' }
+      } : {},
+      include: {
+        patient: { select: { fullName: true, iin: true } },
+        medications: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    })
+    res.json({ prescriptions })
+  } catch (err) { next(err) }
+})
+
 export default router

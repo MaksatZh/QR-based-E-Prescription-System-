@@ -1,7 +1,6 @@
 import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
-
 const FROM = 'E-Prescription System <noreply@e-prescriprion.top>'
 
 async function send(to: string, subject: string, html: string) {
@@ -78,15 +77,12 @@ export async function sendOtpEmail(to: string, fullName: string, otp: string, fi
 }
 
 export async function sendPrescriptionEmail(
-    to: string,
-    patientName: string,
-    doctorName: string,
-    prescriptionId: string,
-    medications: { name: string; dosage: string; qtyPrescribed: number }[]
+  to: string, patientName: string, doctorName: string,
+  prescriptionId: string, medications: { name: string; dosage: string; qtyPrescribed: number }[]
 ) {
   const link = `${process.env.FRONTEND_URL}/patient/${prescriptionId}`
   const medsHtml = medications.map(m =>
-      `<tr>
+    `<tr>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;color:#111">${m.name}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;text-align:center">${m.dosage}</td>
       <td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-size:14px;text-align:center">${m.qtyPrescribed} шт.</td>
@@ -125,6 +121,81 @@ export async function sendPrescriptionEmail(
             <b>Важно:</b> Рецепт действителен 30 дней. Предъявите QR-код и удостоверение личности.
           </p>
         </div>
+      </div>
+    </div>
+  `)
+}
+
+// ─── НОВЫЕ: API Portal уведомления ───────────────────────────────────────────
+
+export async function sendOrgRegistrationNotification(
+  adminEmail: string, adminName: string, orgName: string, orgEmail: string
+) {
+  const adminUrl = `${process.env.FRONTEND_URL}/dashboard/admin`
+  await send(adminEmail, `Новая заявка на API доступ — ${orgName}`, `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto">
+      <div style="background:#4F46E5;padding:24px 32px;border-radius:8px 8px 0 0">
+        <h2 style="color:#fff;margin:0;font-size:20px">E-Prescription — API Portal</h2>
+      </div>
+      <div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
+        <p style="font-size:15px;color:#111">Здравствуйте, <b>${adminName}</b>!</p>
+        <p style="color:#374151;font-size:14px;line-height:1.6">
+          Новая организация подала заявку на получение API доступа:
+        </p>
+        <div style="background:#f0f4ff;border:1px solid #c7d2fe;border-radius:8px;padding:16px;margin:16px 0">
+          <p style="margin:0 0 8px;font-size:14px"><b>Организация:</b> ${orgName}</p>
+          <p style="margin:0;font-size:14px"><b>Email:</b> ${orgEmail}</p>
+        </div>
+        <div style="text-align:center;margin:24px 0">
+          <a href="${adminUrl}" style="background:#4F46E5;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">
+            Перейти в Admin Panel
+          </a>
+        </div>
+      </div>
+    </div>
+  `)
+}
+
+export async function sendOrgApprovedEmail(to: string, orgName: string) {
+  const loginUrl = `${process.env.FRONTEND_URL}/developer/login`
+  await send(to, 'Ваша заявка одобрена — E-Prescription API', `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto">
+      <div style="background:#1D9E75;padding:24px 32px;border-radius:8px 8px 0 0">
+        <h2 style="color:#fff;margin:0;font-size:20px">E-Prescription — API Portal</h2>
+      </div>
+      <div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
+        <p style="font-size:15px;color:#111">Здравствуйте!</p>
+        <p style="color:#374151;font-size:14px;line-height:1.6">
+          Заявка организации <b>${orgName}</b> одобрена.<br>
+          Теперь вы можете войти в Developer Portal и создать API ключ.
+        </p>
+        <div style="text-align:center;margin:32px 0">
+          <a href="${loginUrl}" style="background:#1D9E75;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block">
+            Войти в Developer Portal
+          </a>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px">
+          <p style="margin:0;font-size:13px;color:#166534">
+            После входа перейдите в раздел API Keys и создайте первый ключ.
+          </p>
+        </div>
+      </div>
+    </div>
+  `)
+}
+
+export async function sendOrgSuspendedEmail(to: string, orgName: string) {
+  await send(to, 'Доступ приостановлен — E-Prescription API', `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto">
+      <div style="background:#DC2626;padding:24px 32px;border-radius:8px 8px 0 0">
+        <h2 style="color:#fff;margin:0;font-size:20px">E-Prescription — API Portal</h2>
+      </div>
+      <div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
+        <p style="font-size:15px;color:#111">Здравствуйте!</p>
+        <p style="color:#374151;font-size:14px;line-height:1.6">
+          Доступ организации <b>${orgName}</b> к API был приостановлен администратором.<br>
+          Свяжитесь с поддержкой для уточнения деталей.
+        </p>
       </div>
     </div>
   `)

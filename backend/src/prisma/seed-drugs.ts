@@ -98,14 +98,14 @@ async function importDrugs(filePath: string) {
     await prisma.diagnosisDrugLink.deleteMany()
     await prisma.drug.deleteMany()
     const created = await prisma.drug.createMany({ data: drugs, skipDuplicates: true })
-    console.log(`   ✅ Imported ${created.count} drugs`)
+    console.log(`   Imported ${created.count} drugs`)
     return await prisma.drug.findMany()
 }
 
 // ─── STEP 2: IMPORT ICD-10 ───────────────────────────────────────────────────
 
 async function importICD10(filePath: string) {
-    console.log(`\n🏥 Step 2: Importing ICD-10 from ${path.basename(filePath)}`)
+    console.log(`\n Step 2: Importing ICD-10 from ${path.basename(filePath)}`)
     const content = fs.readFileSync(filePath, 'utf8')
     const lines = content.split('\n').filter(l => l.trim())
     const icd10Data: Array<{ code: string; name: string; groupCode: string }> = []
@@ -122,7 +122,7 @@ async function importICD10(filePath: string) {
 
     await prisma.iCD10.deleteMany()
     const created = await prisma.iCD10.createMany({ data: icd10Data, skipDuplicates: true })
-    console.log(`   ✅ Imported ${created.count} ICD-10 codes`)
+    console.log(`    Imported ${created.count} ICD-10 codes`)
 }
 
 // ─── STEP 3: DIAGNOSIS → DRUG LINKS ──────────────────────────────────────────
@@ -181,13 +181,13 @@ async function importDiagnosisLinks(allDrugs: any[]) {
         console.log(`   Inserted ${Math.min(i + chunk.length, linksToCreate.length)} / ${linksToCreate.length}`)
     }
 
-    console.log(`   ✅ Created ${linksToCreate.length} diagnosis-drug links`)
+    console.log(`    Created ${linksToCreate.length} diagnosis-drug links`)
 }
 
 // ─── STEP 4: IMPORT DRUG INTERACTIONS ────────────────────────────────────────
 
 async function importInteractions(filePath: string, allDrugs: any[]) {
-    console.log(`\n⚠️  Step 4: Importing drug interactions`)
+    console.log(`\n️  Step 4: Importing drug interactions`)
 
     // Build MNN -> drugId map directly from Russian names
     // Prefer simple drugs over combinations (shorter name = simpler)
@@ -260,7 +260,7 @@ async function importInteractions(filePath: string, allDrugs: any[]) {
         process.stdout.write(`\r   Importing... ${Math.min(i + 200, batch.length)}/${batch.length}`)
     }
 
-    console.log(`\n   ✅ Imported ${batch.length} interactions`)
+    console.log(`\n    Imported ${batch.length} interactions`)
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
@@ -275,15 +275,15 @@ async function main() {
     if (!fs.existsSync(icd10Path)) throw new Error(`Не найден: ${icd10Path}`)
     if (!fs.existsSync(interactionsPath)) throw new Error(`Не найден: ${interactionsPath}`)
 
-    console.log('🚀 Starting full data import...')
+    console.log(' Starting full data import...')
     const allDrugs = await importDrugs(registryPath)
     await importICD10(icd10Path)
     await importDiagnosisLinks(allDrugs)
     await importInteractions(interactionsPath, allDrugs)
-    console.log('\n🎉 Full import complete!')
+    console.log('\n Full import complete!')
     console.log(`   Drugs: ${allDrugs.length}`)
 }
 
 main()
-    .catch(err => { console.error('❌ Import failed:', err.message); process.exit(1) })
+    .catch(err => { console.error(' Import failed:', err.message); process.exit(1) })
     .finally(() => prisma.$disconnect())
